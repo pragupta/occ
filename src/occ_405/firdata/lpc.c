@@ -1,11 +1,11 @@
 /* IBM_PROLOG_BEGIN_TAG                                                   */
 /* This is an automatically generated prolog.                             */
 /*                                                                        */
-/* $Source: src/occ/firdata/lpc.C $                                       */
+/* $Source: src/occ_405/firdata/lpc.c $                                   */
 /*                                                                        */
 /* OpenPOWER OnChipController Project                                     */
 /*                                                                        */
-/* Contributors Listed Below - COPYRIGHT 2015                             */
+/* Contributors Listed Below - COPYRIGHT 2015,2017                        */
 /* [+] International Business Machines Corp.                              */
 /*                                                                        */
 /*                                                                        */
@@ -26,6 +26,7 @@
 #include <native.h>
 #include <lpc.h>
 #include <trac_interface.h>
+#include <scom_util.h>
 
 #define    LPCHC_FW_SPACE   0xF0000000 /**< LPC Host Controller FW Space */
 #define    LPCHC_MEM_SPACE  0xE0000000 /**< LPC Host Controller Mem Space */
@@ -33,6 +34,11 @@
 #define    LPCHC_REG_SPACE  0xC0012000 /**< LPC Host Ctlr Register Space */
 
 #define    ECCB_NON_FW_RESET_REG  0x000B0001 /**< ECCB Reset Reg (non-FW) */
+
+#define    LPC_BASE_REG    0x00090040 /**< LPC Base Address Register */
+#define    LPC_CMD_REG     0x00090041 /**< LPC Command Register */
+#define    LPC_DATA_REG    0x00090042 /**< LPC Data Register */
+#define    LPC_STATUS_REG  0x00090043 /**< LPC Status Register */
 
 #define    ECCB_CTL_REG   0x000B0020 /**< ECCB Control Reg (FW) */
 #define    ECCB_RESET_REG   0x000B0021 /**< ECCB Reset Reg (FW) */
@@ -43,8 +49,8 @@
     1101.0100.0000.000x.0000.0001.0000.0000.<address> */
 #define    ECCB_CTL_REG_DEFAULT  0xD400010000000000
 
-/* Error bits: 41-43 56  (52cmd complete) (not 57: only non-fw use) */
-#define    ECCB_STAT_REG_ERROR_MASK  0x0000000000700080 /**< Error Bits */
+/* Error bits: wh_todo comments here */
+#define    LPC_STAT_REG_ERROR_MASK  0x0000000000000000 /**< Error Bits */ //wh_todo correctly set mask
 
 /**< OPB LPCM Sync FIR Reg - used to read the FIR*/
 #define    OPB_LPCM_FIR_REG  0x01010C00
@@ -63,9 +69,9 @@
 
 #define    ECCB_RESET_LPC_FAST_RESET  (1ULL << 62) /**< bit 1  Fast reset */
 
-#define    ECCB_POLL_TIME_NS  400000 /**< max time should be 400ms */
-//dc99 #define    ECCB_POLL_INCR_NS  10 /**< minimum increment during poll */
-#define    ECCB_POLL_INCR_NS  100000 /**< increase for testing */
+#define    LPC_POLL_TIME_NS  400000 /**< max time should be 400ms */
+//wh_todo dc99 #define    LPC_POLL_INCR_NS  10 /**< minimum increment during poll */
+#define    LPC_POLL_INCR_NS  100000 /**< increase for testing */
 
 #define    LPCHC_SYNC_CYCLE_COUNTER_INFINITE  0xFF000000
 
@@ -81,48 +87,60 @@ int TRACE_LPC = 0;
 #define LPC_TRACFCOMP(args...)
 #endif
 
+
 /**
- * @brief  ECCB Control Register Layout
- */
+ * @brief  LPC Base Register Layout
+*/
 typedef union
 {
+
     uint64_t data64;
+
     struct
     {
         /* unused sections should be set to zero */
-        uint64_t magic1      : 4;  /**< 0:3 = b1101 per spec */
-        uint64_t data_len    : 4;  /**< 4:7 = b0100 means 4 byte */
-        uint64_t unused1     : 7;  /**< 8:14 */
-        uint64_t read_op     : 1;  /**< 15 = set for read operation */
-        uint64_t unused2     : 7;  /**< 16:22 */
-        uint64_t addr_len    : 3;  /**< 23:25 = b100 means 4 byte */
-        uint64_t unused3     : 6;  /**< 26:31 */
-        uint64_t address     : 32; /**< 32:63 = LPC Address */
+        uint64_t unused0   : 8;  /**< 0:7 */
+        uint64_t base_addr : 24; /**< 8:31 */
+        uint64_t unused1   : 31; /**< 32:62 */
+        uint64_t disable   : 1;  /**< 63 */
     };
-} ControlReg_t;
+} BaseReg_t;
 
 /**
- * @brief  ECCB Status Register Layout
+ * @brief  LPC Control Register Layout
+ */
+typedef union
+{
+
+    uint64_t data64;
+
+    struct
+    {
+        /* unused sections should be set to zero */
+        //       rnw == read not write
+        uint64_t rnw      : 1;  /**< 0 = Setting to 1 causes read */
+        uint64_t unused0  : 4;  /**< 1:4 */
+        uint64_t size     : 7;  /**< 5:11 */
+        uint64_t unused1  : 20; /**< 12:31 */
+        uint64_t address  : 32; /**< 32:63 = LPC Address */
+    };
+} CommandReg_t;
+
+/**
+ * @brief  LPC Status Register Layout
  */
 typedef union
 {
     uint64_t data64;
     struct
     {
-        uint64_t unused      : 6;  /**< 0:5  */
-        uint64_t read_data   : 32; /**< 6:37 */
-        uint64_t unused1     : 3;  /**< 38:40 */
-        uint64_t eccb_err    : 3;  /**< 41:43 = ECCB_Error_Info */
-        uint64_t busy        : 1;  /**< 44 = Operation Busy */
-        uint64_t unused2     : 7;  /**< 45:51 */
-        uint64_t op_done     : 1;  /**< 52 = Command Complete */
-        uint64_t unused3     : 3;  /**< 53:55 */
-        uint64_t addr_parity_err : 1; /**< 56 = ECC Address Register
-                                       Parity Error */
-        uint64_t unused4     : 7;  /**< 57:63 */
+        uint64_t op_done     : 1;  /**< 0 */
+        uint64_t unused0     : 9;  /**< 1:9 */
+        uint64_t opb_valid   : 1;  /**< 10 */
+        uint64_t opb_ack     : 1;  /**< 11 */
+        uint64_t unused1     : 52; /**< 12:63 */
     };
 } StatusReg_t;
-
 
 uint32_t checkAddr(LpcTransType i_type,
                    uint32_t i_addr)
@@ -141,8 +159,8 @@ uint32_t checkAddr(LpcTransType i_type,
 }
 
 
-errorHndl_t pollComplete(const ControlReg_t* i_ctrl,
-                               StatusReg_t* o_stat)
+errorHndl_t pollComplete(CommandReg_t* i_ctrl,
+                         StatusReg_t* o_stat)
 {
     errorHndl_t l_err = NO_ERROR;
 
@@ -151,11 +169,14 @@ errorHndl_t pollComplete(const ControlReg_t* i_ctrl,
         uint64_t loop = 0;
         do
         {
-            xscom_read( ECCB_STAT_REG, &(o_stat->data64) );
-            LPC_TRACFCOMP( "writeLPC> Poll on ECCB Status, "
+            SCOM_Trgt_t l_target;
+            l_target.type = TRGT_PROC;
+            l_err = SCOM_getScom(l_target, LPC_STATUS_REG, &(o_stat->data64));
+            LPC_TRACFCOMP( "pollComplete> Poll on LPC Status, "
                            "poll_time=0x%.16x, stat=0x%.16x",
                            poll_time,
                            o_stat->data64 );
+
             if( l_err )
             {
                 break;
@@ -166,16 +187,16 @@ errorHndl_t pollComplete(const ControlReg_t* i_ctrl,
                 break;
             }
 
-            /* want to start out incrementing by small numbers then get bigger
+            /* Want to start out incrementing by small numbers then get bigger
                to avoid a really tight loop in an error case so we'll increase
                the wait each time through */
-            sleep( ECCB_POLL_INCR_NS*(++loop) );
-            poll_time += ECCB_POLL_INCR_NS * loop;
-        } while ( poll_time < ECCB_POLL_TIME_NS );
+            sleep( LPC_POLL_INCR_NS*(++loop) );
+            poll_time += LPC_POLL_INCR_NS * loop;
+        } while ( poll_time < LPC_POLL_TIME_NS );
 
         /* Check for hw errors or timeout if no previous logs */
         if( (l_err == NO_ERROR) &&
-            ((o_stat->data64 & ECCB_STAT_REG_ERROR_MASK)
+            ((o_stat->data64 & LPC_STAT_REG_ERROR_MASK)
              || (!o_stat->op_done)) )
         {
             TRACFCOMP( "LpcDD::pollComplete> LPC error or timeout: addr=0x%.8X, status=0x%.8X%.8X",
@@ -186,6 +207,7 @@ errorHndl_t pollComplete(const ControlReg_t* i_ctrl,
     } while(0);
 
     return l_err;
+
 }
 
 
@@ -197,7 +219,7 @@ errorHndl_t lpc_read( LpcTransType i_type,
                      size_t i_size )
 {
     errorHndl_t l_err = NO_ERROR;
-    uint32_t l_addr = 0;
+    int32_t l_addr = 0;
 
     do {
         if( o_data == NULL )
@@ -210,32 +232,24 @@ errorHndl_t lpc_read( LpcTransType i_type,
         /* Generate the full absolute LPC address */
         l_addr = checkAddr( i_type, i_addr );
 
-        /* Execute command. */
-        ControlReg_t eccb_cmd;
-        eccb_cmd.data64 = ECCB_CTL_REG_DEFAULT;
-        eccb_cmd.data_len = i_size;
-        eccb_cmd.read_op = 1;
-        eccb_cmd.addr_len = sizeof(l_addr);
-        eccb_cmd.address = l_addr;
-        xscom_write( ECCB_CTL_REG, eccb_cmd.data64 );
+        /* Setup command */
+        CommandReg_t lpc_cmd;
+        lpc_cmd.rnw     = 1;  //Indicate read not write
+        lpc_cmd.size    = i_size;
+        lpc_cmd.address = l_addr;
+
+        /* Execute command via Scom */
+        SCOM_Trgt_t l_target;
+        l_target.type = TRGT_PROC;
+        l_err = SCOM_putScom(l_target, LPC_CMD_REG, lpc_cmd.data64);
 
         /* Poll for completion */
-        StatusReg_t eccb_stat;
-        l_err = pollComplete( &eccb_cmd, &eccb_stat );
+        StatusReg_t lpc_status;
+        pollComplete( &lpc_cmd, &lpc_status );
         if( l_err ) { break; }
 
-        /* Copy data out to caller's buffer. */
-        if( i_size <= sizeof(uint32_t) )
-        {
-            uint32_t tmpbuf = eccb_stat.read_data;
-            memcpy( o_data, &tmpbuf, i_size );
-        }
-        else
-        {
-            TRACFCOMP( "readLPC> Unsupported buffer size : %d", i_size );
-            l_err = -1;
-            break;
-        }
+        /* Read result */
+        l_err = SCOM_getScom(l_target, LPC_DATA_REG, (uint64_t *)o_data);
 
     } while(0);
 
@@ -243,6 +257,7 @@ errorHndl_t lpc_read( LpcTransType i_type,
 
     return l_err;
 }
+
 
 errorHndl_t lpc_write( LpcTransType i_type,
                       uint32_t i_addr,
@@ -256,44 +271,23 @@ errorHndl_t lpc_write( LpcTransType i_type,
         /* Generate the full absolute LPC address */
         l_addr = checkAddr( i_type, i_addr );
 
-        uint64_t eccb_data = 0;
-        /* Left-justify user data into data register. */
-        switch ( i_size )
-        {
-            case 1:
-                eccb_data = (uint64_t)
-                   (*(const uint8_t*)(i_data)) << 56;
-                break;
-            case 2:
-                eccb_data = (uint64_t)
-                   (*(const uint16_t*)( i_data ) ) << 48;
-                break;
-            case 4:
-                eccb_data = (uint64_t)
-                   (*(const uint32_t*)( i_data ) ) << 32;
-                break;
-            default:
-                TRACFCOMP( "writeLPC> Unsupported buffer size : %d", i_size );
-                break;
-        }
+        /* Setup Write Command */
+        CommandReg_t lpc_cmd;
+        lpc_cmd.rnw     = 0;  //Indicate write
+        lpc_cmd.size    = i_size;
+        lpc_cmd.address = l_addr;
 
-        /* Write data out */
-        TRACZCOMP("ECCB_DATA_REG=%.8X%.8X",(uint32_t)(eccb_data>>32),(uint32_t)eccb_data);
-        xscom_write( ECCB_DATA_REG, eccb_data );
+        /* Setup Write command via Scom */
+        SCOM_Trgt_t l_target;
+        l_target.type = TRGT_PROC;
+        SCOM_putScom(l_target, LPC_CMD_REG, lpc_cmd.data64);
 
-        /* Execute command. */
-        ControlReg_t eccb_cmd;
-        eccb_cmd.data64 = ECCB_CTL_REG_DEFAULT;
-        eccb_cmd.data_len = i_size;
-        eccb_cmd.read_op = 0;
-        eccb_cmd.addr_len = sizeof(l_addr);
-        eccb_cmd.address = l_addr;
-        xscom_write( ECCB_CTL_REG, eccb_cmd.data64 );
-        TRACZCOMP("ECCB_CTL_REG=%.8X%.8X",(uint32_t)(eccb_cmd.data64>>32),(uint32_t)eccb_cmd.data64);
+        /* Trigger Write command via Scom */
+        SCOM_putScom(l_target, LPC_DATA_REG, *i_data);
 
         /* Poll for completion */
-        StatusReg_t eccb_stat;
-        l_err = pollComplete( &eccb_cmd, &eccb_stat );
+        StatusReg_t lpc_stat;
+        l_err = pollComplete( &lpc_cmd, &lpc_stat );
         if( l_err ) { break; }
 
     } while(0);

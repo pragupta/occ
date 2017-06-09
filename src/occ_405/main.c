@@ -53,7 +53,7 @@
 #include <amec_health.h>
 #include <amec_freq.h>
 #include "scom.h"
-//#include <fir_data_collect.h>
+#include <fir_data_collect.h>
 #include <pss_service_codes.h>
 #include <dimm.h>
 #include "occhw_shared_data.h"
@@ -62,6 +62,10 @@
 #include <p9_pstates_occ.h>
 #include <wof.h>
 #include "pgpe_service_codes.h"
+//#include <lpc.h>
+#include <native.h>
+#include <ast_mboxdd.h>
+#include <pnor_mboxdd.h>
 
 extern uint32_t __ssx_boot; // Function address is 32 bits
 extern uint32_t G_occ_phantom_critical_count;
@@ -116,8 +120,6 @@ SimicsStdio G_simics_stderr;
 //  Critical /non Critical Stacks
 uint8_t G_noncritical_stack[NONCRITICAL_STACK_SIZE];
 uint8_t G_critical_stack[CRITICAL_STACK_SIZE];
-
-
 
 //NOTE: Three semaphores are used so that if in future it is decided
 // to move health monitor and FFDC into it's own threads, then
@@ -1711,6 +1713,39 @@ void Main_thread_routine(void *private)
         }
 */
 
+        //wh_todo force some tests in FIR collection path
+        static bool L_fir_collection_completed = FALSE;
+        if (G_fir_collection_required && !L_fir_collection_completed)
+        {
+            TRAC_INFO("WGH FIR collection required");
+            uint32_t l_err = 0;
+            uint8_t l_data;
+            // If this OCC is the FIR master and PNOR access is allowed perform
+            //             // FIR collection
+            if (OCC_IS_FIR_MASTER())
+            {
+                TRAC_INFO("WGH IS_FIR_MASTER");
+                l_err = readRegSIO( 0x60, &l_data );
+
+                if (l_err)
+                {
+                    TRAC_INFO("WGH readRegSIO 0x60 returned an error");
+                }
+                TRAC_INFO("WGH Reg 0x60 = %8x", l_data);
+                l_err = readRegSIO( 0x61, &l_data );
+                TRAC_INFO("WGH Reg 0x61 = %8x", l_data);
+
+                l_err = writeRegSIO( 0x60, (0x1000 >> 8) & 0xFF );
+                l_err = writeRegSIO( 0x61, 0x1000 & 0xFF );
+
+                l_err = readRegSIO( 0x60, &l_data );
+                TRAC_INFO("WGH after write Reg 0x60 = %8x", l_data);
+                l_err = readRegSIO( 0x61, &l_data );
+                TRAC_INFO("WGH after write Reg 0x61 = %8x", l_data);
+
+                L_fir_collection_completed = TRUE;
+            }
+        }
         if( l_ssxrc == SSX_OK)
         {
             // Wait for health monitor semaphore
