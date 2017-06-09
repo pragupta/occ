@@ -1,11 +1,11 @@
 /* IBM_PROLOG_BEGIN_TAG                                                   */
 /* This is an automatically generated prolog.                             */
 /*                                                                        */
-/* $Source: src/occ/firdata/lpc.H $                                       */
+/* $Source: src/occ_405/firdata/lpc.h $                                   */
 /*                                                                        */
 /* OpenPOWER OnChipController Project                                     */
 /*                                                                        */
-/* Contributors Listed Below - COPYRIGHT 2015                             */
+/* Contributors Listed Below - COPYRIGHT 2015,2017                        */
 /* [+] International Business Machines Corp.                              */
 /*                                                                        */
 /*                                                                        */
@@ -47,5 +47,9 @@ errorHndl_t lpc_write( LpcTransType i_type,
                        uint32_t i_addr,
                        uint8_t* i_data,
                        size_t i_size );
+
+uint32_t checkAddr(LpcTransType i_type,
+                   uint32_t i_addr);
+
 
 #endif

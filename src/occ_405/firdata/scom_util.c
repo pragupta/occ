@@ -565,3 +565,17 @@ int32_t SCOM_getIdScom( SCOM_Trgt_t i_trgt, uint64_t i_addr, uint32_t * o_val )
 
     #undef FUNC
 }
+
+int32_t SCOM_putScom( SCOM_Trgt_t i_trgt, uint32_t i_addr, uint64_t o_val )
+{
+    int32_t l_rc = SUCCESS;
+
+    uint64_t l_trans_addr;
+    l_rc = translate_addr(i_trgt, i_addr, &l_trans_addr);
+    if(l_rc == SUCCESS)
+    {
+        l_rc = putscomraw(i_trgt, l_trans_addr, o_val);
+    }
+
+    return l_rc;
+}
