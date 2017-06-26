@@ -32,7 +32,6 @@
 #define    LPCHC_MEM_SPACE  0xE0000000 /**< LPC Host Controller Mem Space */
 #define    LPCHC_IO_SPACE   0xD0010000 /**< LPC Host Controller I/O Space */
 #define    LPCHC_REG_SPACE  0xC0012000 /**< LPC Host Ctlr Register Space */
-
 #define    ECCB_NON_FW_RESET_REG  0x000B0001 /**< ECCB Reset Reg (non-FW) */
 
 #define    LPC_BASE_REG    0x00090040 /**< LPC Base Address Register */
@@ -172,10 +171,6 @@ errorHndl_t pollComplete(CommandReg_t* i_ctrl,
             SCOM_Trgt_t l_target;
             l_target.type = TRGT_PROC;
             l_err = SCOM_getScom(l_target, LPC_STATUS_REG, &(o_stat->data64));
-            LPC_TRACFCOMP( "pollComplete> Poll on LPC Status, "
-                           "poll_time=0x%.16x, stat=0x%.16x",
-                           poll_time,
-                           o_stat->data64 );
 
             if( l_err )
             {
@@ -199,7 +194,7 @@ errorHndl_t pollComplete(CommandReg_t* i_ctrl,
             ((o_stat->data64 & LPC_STAT_REG_ERROR_MASK)
              || (!o_stat->op_done)) )
         {
-            TRACFCOMP( "LpcDD::pollComplete> LPC error or timeout: addr=0x%.8X, status=0x%.8X%.8X",
+            TRAC_ERR( "LpcDD::pollComplete> LPC error or timeout: addr=0x%.8X, status=0x%.8X%.8X",
                        i_ctrl->address, (uint32_t)(o_stat->data64>>32), (uint32_t)o_stat->data64 );
             l_err = -1;
             break;
@@ -231,6 +226,7 @@ errorHndl_t lpc_read( LpcTransType i_type,
 
         /* Generate the full absolute LPC address */
         l_addr = checkAddr( i_type, i_addr );
+//        TRAC_ERR("WGH lpc_read abs lpc addr: 0x%x", l_addr);
 
         /* Setup command */
         CommandReg_t lpc_cmd;
@@ -241,6 +237,10 @@ errorHndl_t lpc_read( LpcTransType i_type,
         /* Execute command via Scom */
         SCOM_Trgt_t l_target;
         l_target.type = TRGT_PROC;
+        l_target.isMaster = TRUE;
+        //TRAC_ERR("WGH lpc_read doing putScom to tgt:0x%x reg:0x%x data[0:31]:0x%x data[32:64]:0x%x", l_target, LPC_CMD_REG,
+        //        (uint32_t)((lpc_cmd.data64&0xFFFFFFFF00000000)>>32),
+        //        (uint32_t)(lpc_cmd.data64&0xFFFFFFFF));
         l_err = SCOM_putScom(l_target, LPC_CMD_REG, lpc_cmd.data64);
 
         /* Poll for completion */
@@ -248,12 +248,16 @@ errorHndl_t lpc_read( LpcTransType i_type,
         pollComplete( &lpc_cmd, &lpc_status );
         if( l_err ) { break; }
 
+        uint64_t l_ret;
         /* Read result */
-        l_err = SCOM_getScom(l_target, LPC_DATA_REG, (uint64_t *)o_data);
+        //TRAC_ERR("WGH lpc_read doing getScom to tgt:0x%x reg:0x%x data:0x%x", l_target, LPC_DATA_REG, *o_data);
+        l_err = SCOM_getScom(l_target, LPC_DATA_REG, &l_ret);
 
+        //TRAC_ERR("WGH: above getscom returned: 0x%x, 0x%x",
+        //        (uint32_t)(l_ret >>32),
+        //        (uint32_t)(l_ret));
+        *o_data = l_ret;
     } while(0);
-
-    LPC_TRACFCOMP( "readLPC> %08X[%d] = %08X", l_addr, i_size, *reinterpret_cast<uint32_t*>( o_data )  >> (8 * (4 - i_size)) );
 
     return l_err;
 }
@@ -280,15 +284,26 @@ errorHndl_t lpc_write( LpcTransType i_type,
         /* Setup Write command via Scom */
         SCOM_Trgt_t l_target;
         l_target.type = TRGT_PROC;
+        l_target.isMaster = TRUE;
+        //TRAC_ERR("WGH lpc_write doing putScom to tgt:0x%x reg:0x%x data:0x%08x 0x%08x",
+        //        l_target, LPC_CMD_REG,
+        //        (uint32_t)((lpc_cmd.data64&0xFFFFFFFF00000000)>>32),
+        //        (uint32_t)(lpc_cmd.data64&0xFFFFFFFF));
         SCOM_putScom(l_target, LPC_CMD_REG, lpc_cmd.data64);
 
         /* Trigger Write command via Scom */
-        SCOM_putScom(l_target, LPC_DATA_REG, *i_data);
+        uint32_t l_write_data = (*i_data);
+        if(l_addr == 0xd001002e)
+            l_write_data <<= 8; 
+        //TRAC_ERR("WGH lpc_write doing putScom to tgt:0x%x reg:0x%x data:0x%x",
+        //        l_target, LPC_DATA_REG, l_write_data);
+        SCOM_putScom(l_target, LPC_DATA_REG, l_write_data);
 
         /* Poll for completion */
         StatusReg_t lpc_stat;
         l_err = pollComplete( &lpc_cmd, &lpc_stat );
         if( l_err ) { break; }
+
 
     } while(0);
 

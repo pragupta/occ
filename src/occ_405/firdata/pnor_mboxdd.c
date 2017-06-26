@@ -41,6 +41,7 @@ int TRACE_PNOR_MBOX = 0;
 
 errorHndl_t hwInit(pnorMbox_t* i_pnorMbox)
 {
+    TRAC_ERR("WGH hwInit start");
     errorHndl_t l_err = NO_ERROR;
 
     //Current window starts closed
@@ -91,6 +92,7 @@ errorHndl_t hwInit(pnorMbox_t* i_pnorMbox)
                                         << i_pnorMbox->iv_blockShift;
     }
 
+    TRAC_ERR("WGH hwInit end");
     return l_err;
 }
 

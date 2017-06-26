@@ -67,6 +67,8 @@
 #include <ast_mboxdd.h>
 #include <pnor_mboxdd.h>
 
+pnorMbox_t l_pnorMbox;
+
 extern uint32_t __ssx_boot; // Function address is 32 bits
 extern uint32_t G_occ_phantom_critical_count;
 extern uint32_t G_occ_phantom_noncritical_count;
@@ -1713,39 +1715,61 @@ void Main_thread_routine(void *private)
         }
 */
 
+
         //wh_todo force some tests in FIR collection path
         static bool L_fir_collection_completed = FALSE;
         if (G_fir_collection_required && !L_fir_collection_completed)
         {
-            TRAC_INFO("WGH FIR collection required");
-            uint32_t l_err = 0;
+            TRAC_ERR("Checkstop analysis start");
+            //initializeMbox();
+            uint32_t l_rc = hwInit(&l_pnorMbox);
+            if(l_rc != SUCCESS)
+            {
+                TRAC_ERR("hwInit failed");
+            }
+            //uint32_t l_pnor_data[2];
+            TRAC_ERR("***WGH FIR collection required");
+
             uint8_t l_data;
             // If this OCC is the FIR master and PNOR access is allowed perform
             //             // FIR collection
-            if (OCC_IS_FIR_MASTER())
+//            if (OCC_IS_FIR_MASTER())
             {
-                TRAC_INFO("WGH IS_FIR_MASTER");
-                l_err = readRegSIO( 0x60, &l_data );
+                writeRegSIO(0x21, 0x31);
+//                TRAC_ERR("***WGH IS_FIR_MASTER");
+                readRegSIO( 0x21, &l_data );
+                uint64_t l_data_full = l_data;
+                TRAC_ERR("WGH l_data = 0x%x", l_data);
+                TRAC_ERR("WGH Reg 0x21 = 0x%08x %08x", (uint32_t)(l_data_full >> 32),
+                        (uint32_t)l_data_full);
+//
+//                readRegSIO( 0x61, (uint8_t*)&l_data );
+//                TRAC_ERR("WGH Reg 0x61 = 0x%x 0x%x", (l_data&0xFFFFFFFF00000000) >> 32,
+//                        l_data&0xFFFFFFFF);
 
-                if (l_err)
-                {
-                    TRAC_INFO("WGH readRegSIO 0x60 returned an error");
-                }
-                TRAC_INFO("WGH Reg 0x60 = %8x", l_data);
-                l_err = readRegSIO( 0x61, &l_data );
-                TRAC_INFO("WGH Reg 0x61 = %8x", l_data);
+//                uint8_t l_writeData1 = (0xABCD >> 8) & 0xFF;
+//                uint8_t l_writeData2 = (0x1234  & 0xFF);
+//                TRAC_ERR("****WGH writing to 0x21: 0x%x", (uint8_t)l_writeData1);
+//                writeRegSIO( 0x21, l_writeData1);
+//                TRAC_ERR("****WGH writing to 0x22: 0x%x", (uint8_t)l_writeData2);
+//                writeRegSIO( 0x22, l_writeData2);
 
-                l_err = writeRegSIO( 0x60, (0x1000 >> 8) & 0xFF );
-                l_err = writeRegSIO( 0x61, 0x1000 & 0xFF );
+//                readRegSIO( 0x21, (uint8_t*)&l_data );
+//                TRAC_ERR("****WGH after write Reg 0x21 = 0x%x 0x%x",(uint32_t)((l_data&0xFFFFFFFF00000000) >> 32),
+//                        (uint32_t)(l_data&0xFFFFFFFF));
 
-                l_err = readRegSIO( 0x60, &l_data );
-                TRAC_INFO("WGH after write Reg 0x60 = %8x", l_data);
-                l_err = readRegSIO( 0x61, &l_data );
-                TRAC_INFO("WGH after write Reg 0x61 = %8x", l_data);
+//                readRegSIO( 0x22, (uint8_t*)&l_data );
+//                TRAC_ERR("***WGH after write Reg 0x22 = 0x%x 0x%x",(uint32_t)((l_data&0xFFFFFFFF00000000) >> 32),
+//                        (uint32_t)(l_data&0xFFFFFFFF));
 
                 L_fir_collection_completed = TRUE;
+                //readFlash(&l_pnorMbox, 0, 8, l_pnor_data);
+
+                //TRAC_ERR("WGH PNOR data: 0x%08x %08x", l_pnor_data[0], l_pnor_data[1]);
+                TRAC_ERR("***WGH TEST DONE");
             }
         }
+
         if( l_ssxrc == SSX_OK)
         {
             // Wait for health monitor semaphore
