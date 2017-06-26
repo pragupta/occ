@@ -57,6 +57,8 @@ errorHndl_t writeRegSIO(uint8_t i_regAddr, uint8_t i_data)
     do {
         size_t reg_size = sizeof(uint8_t);
 
+//        TRAC_ERR("WGH writeRegSIO: regAddr:0x%X, data:0x%x", i_regAddr, i_data);
+//        TRAC_ERR("WGH writeRegSIO calling lpc_write to update addr using reg=2E");
         /* Write out the register address */
         l_err = lpc_write( LPC_TRANS_IO, SIO_ADDR_REG_2E,
                            &i_regAddr,
@@ -64,6 +66,7 @@ errorHndl_t writeRegSIO(uint8_t i_regAddr, uint8_t i_data)
         if( l_err ) { break; }
 
         /* Write out the register data */
+//        TRAC_ERR("WGH writeRegSIO calling lpc_write to update data using reg=2F");
         l_err = lpc_write( LPC_TRANS_IO, SIO_DATA_REG_2F,
                            &i_data,
                            reg_size );
@@ -80,6 +83,9 @@ errorHndl_t readRegSIO(uint8_t i_regAddr, uint8_t* o_data)
 
     do {
         size_t reg_size = sizeof(uint8_t);
+//        TRAC_ERR("WGH readRegSIO regAddr=0x%x, reg_size:%d", i_regAddr, reg_size);
+//        TRAC_ERR("WGH readRegSIO type:%d, sio_addr_reg:0x%x", LPC_TRANS_IO,
+//                SIO_ADDR_REG_2E);
 
         /* Write out the register address */
          l_err = lpc_write( LPC_TRANS_IO, SIO_ADDR_REG_2E,
@@ -87,10 +93,14 @@ errorHndl_t readRegSIO(uint8_t i_regAddr, uint8_t* o_data)
                            reg_size );
         if( l_err ) { break; }
 
+//        TRAC_ERR("WGH readRegSIO before lpc read type:%d, sio_addr_reg:0x%x, data:0x%x size:0x%x",
+//                LPC_TRANS_IO, SIO_DATA_REG_2F, *o_data, reg_size);
         /* Read in the register data */
         l_err = lpc_read( LPC_TRANS_IO, SIO_DATA_REG_2F,
                           o_data,
                           reg_size );
+//        TRAC_ERR("WGH readRegSIO after lpc read type:%d, sio_addr_reg:0x%x, data:0x%x size:0x%x",
+//                LPC_TRANS_IO, SIO_DATA_REG_2F, *o_data, reg_size);
         if( l_err ) { break; }
 
     } while(0);
@@ -281,8 +291,6 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
 errorHndl_t initializeMbox(void)
 {
     errorHndl_t l_errl = NO_ERROR;
-
-    TRAC_INFO("initializeMBOX()");
 
     do
     {

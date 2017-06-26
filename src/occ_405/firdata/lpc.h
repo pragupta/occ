@@ -34,8 +34,8 @@
  * @brief LPC Transaction Types
  */
 typedef enum  {
-    LPC_TRANS_IO = 1,  /* LPC IO Space */
-    LPC_TRANS_FW = 2,  /* LPC Firmware Space */
+    LPC_TRANS_IO = 0,  /* LPC IO Space */
+    LPC_TRANS_FW = 1,  /* LPC Firmware Space */
 } LpcTransType;
 
 errorHndl_t lpc_read( LpcTransType i_type,

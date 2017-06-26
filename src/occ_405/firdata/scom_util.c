@@ -476,6 +476,7 @@ int32_t SCOM_getScom( SCOM_Trgt_t i_trgt, uint32_t i_addr, uint64_t * o_val )
         /* Do the SCOM. */
         rc = getscomraw( chip_targ, trans_addr, o_val );
     }
+    TRAC_ERR("WGH SCOM_getScom returning 0x%08x %08x", (uint32_t)(*o_val>>32), (uint32_t)(*o_val));
 
     return rc;
 }
