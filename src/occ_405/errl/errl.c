@@ -655,7 +655,7 @@ void commitErrl( errlHndl_t *io_err )
                 TRAC_IMP("SAFE mode required, suspending error log commits. FIR capture required.");
 
                 // Suspend all error log commits
-                L_log_commits_suspended_by_safe_mode = TRUE;
+                //L_log_commits_suspended_by_safe_mode = TRUE;
 
                 // Motivate FIR data collection
                 G_fir_collection_required = TRUE;

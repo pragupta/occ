@@ -130,15 +130,15 @@ errorHndl_t mboxIn(uint64_t i_addr, uint8_t *o_byte)
 
 errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
 {
-    uint8_t* l_data = ((uint8_t*)((char*)&io_msg));
+    uint8_t* l_data = (uint8_t*)io_msg;
     errorHndl_t l_err = NO_ERROR;
     uint8_t l_stat1;
     uint8_t l_flags;
-    uint32_t l_loops = 0;
+    //uint32_t l_loops = 0;
     bool l_prot_error = false;
     int i;
 
-    TRAC_INFO( "doMessage(0x%02x)", io_msg->iv_cmd );
+    //TRAC_IMP( "doMessage(Command = 0x%02x)", io_msg->iv_cmd );
     io_msg->iv_seq = io_mbox->iv_mboxMsgSeq++;
 
     do
@@ -146,6 +146,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
         /* Write message out */
         for (i = 0; i < BMC_MBOX_DATA_REGS && !l_err; i++)
         {
+            //TRAC_IMP("doMessage: l_data[%d] = 0x%x", i, l_data[i]);
             l_err = mboxOut(i, l_data[i]);
         }
 
@@ -170,15 +171,16 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
             break;
         }
 
-        TRAC_INFO( "Command sent, waiting for response...");
+        TRAC_IMP( "Command sent, waiting for response...");
 
         /* Wait for response */
-        while ( l_loops++ < MBOX_MAX_RESP_WAIT_US && !l_err )
-        {
+        //while ( l_loops++ < MBOX_MAX_RESP_WAIT_US && !l_err )
+        //{
             l_err = mboxIn(MBOX_STATUS_1, &l_stat1);
 
             if ( l_err )
             {
+                TRAC_IMP("doMessage error from MBOX_STATUS_1");
                 break;
             }
 
@@ -186,26 +188,29 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
 
             if ( l_err )
             {
+                TRAC_IMP("doMessage error from MBOX_FLAG_REG");
                 break;
             }
 
             if ( l_stat1 & MBOX_STATUS1_RESP )
             {
+                TRAC_IMP("doMessage found response");
                 break;
             }
 
-            sleep(1000);
-        }
+            //sleep(1000);
+        //}
+        TRAC_IMP( "WGH Response received. Flags 0x%x Status 0x%x", l_flags, l_stat1);
 
         if ( l_err )
         {
-            TRAC_INFO( "Got error waiting for response !");
+            TRAC_IMP( "Got error waiting for response !");
             break;
         }
 
         if ( !(l_stat1 & MBOX_STATUS1_RESP) )
         {
-            TRAC_INFO( "Timeout waiting for response !");
+            TRAC_IMP( "Timeout waiting for response !");
 
             // Don't try to interrupt the BMC anymore
             l_err = mboxOut(MBOX_HOST_CTRL, 0);
@@ -213,9 +218,9 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
             if ( l_err)
             {
                 //Note the command failed
-                TRAC_INFO( "Error communicating with MBOX daemon");
-                TRAC_INFO( "Mbox status 1 reg: %x", l_stat1);
-                TRAC_INFO( "Mbox flag reg: %x", l_flags);
+                TRAC_IMP( "Error communicating with MBOX daemon");
+                TRAC_IMP( "Mbox status 1 reg: %x", l_stat1);
+                TRAC_IMP( "Mbox flag reg: %x", l_flags);
             }
 
             // Tell the code below that we generated the error
@@ -229,7 +234,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
 
         if (l_err)
         {
-            TRAC_INFO( "Got error clearing status");
+            TRAC_IMP( "Got error clearing status");
             break;
         }
 
@@ -238,7 +243,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
         uint8_t old_seq = io_msg->iv_seq;
 
         // Read response
-        TRAC_INFO( "Reading response data...");
+        //TRAC_IMP( "Reading response data...");
 
         for (i = 0; i < BMC_MBOX_DATA_REGS && !l_err; i++)
         {
@@ -247,18 +252,18 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
 
         if ( l_err )
         {
-            TRAC_INFO( "Got error reading response !");
+            TRAC_IMP( "Got error reading response !");
             break;
         }
 
-        TRAC_INFO( "Message: cmd:%02x seq:%02x a:%02x %02x %02x %02x %02x..resp:%02x",
-                    io_msg->iv_cmd, io_msg->iv_seq, io_msg->iv_args[0],
-                    io_msg->iv_args[1], io_msg->iv_args[2], io_msg->iv_args[3],
-                    io_msg->iv_args[4], io_msg->iv_resp);
+        //TRAC_IMP( "Message: cmd:%02x seq:%02x a:%02x %02x %02x %02x %02x..resp:%02x",
+        //            io_msg->iv_cmd, io_msg->iv_seq, io_msg->iv_args[0],
+        //            io_msg->iv_args[1], io_msg->iv_args[2], io_msg->iv_args[3],
+        //            io_msg->iv_args[4], io_msg->iv_resp);
 
         if (old_seq != io_msg->iv_seq)
         {
-            TRAC_INFO( "bad sequence number in mbox message, got %d want %d",
+            TRAC_IMP( "bad sequence number in mbox message, got %d want %d",
                        io_msg->iv_seq, old_seq);
 
             l_err = -1;
@@ -267,7 +272,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
 
         if (io_msg->iv_resp != MBOX_R_SUCCESS)
         {
-            TRAC_INFO( "BMC mbox command failed with err %d",
+            TRAC_IMP( "BMC mbox command failed with err %d",
                        io_msg->iv_resp);
             l_err = -1;
             // Tell code below that we generated the error (not an LPC error)
@@ -283,8 +288,8 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
     {
     }
 
-    TRAC_INFO( "doMessage() resp=0x%02x",
-               io_msg->iv_resp );
+    //TRAC_IMP( "doMessage() resp=0x%02x",
+    //           io_msg->iv_resp );
     return l_err;
 }
 

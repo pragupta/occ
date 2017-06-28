@@ -238,10 +238,14 @@ errorHndl_t lpc_read( LpcTransType i_type,
         SCOM_Trgt_t l_target;
         l_target.type = TRGT_PROC;
         l_target.isMaster = TRUE;
-        //TRAC_ERR("WGH lpc_read doing putScom to tgt:0x%x reg:0x%x data[0:31]:0x%x data[32:64]:0x%x", l_target, LPC_CMD_REG,
-        //        (uint32_t)((lpc_cmd.data64&0xFFFFFFFF00000000)>>32),
-        //        (uint32_t)(lpc_cmd.data64&0xFFFFFFFF));
+        TRAC_IMP("WGH lpc_read doing putScom to LPC_CMD_REG data[0:31]:0x%08x data[32:64]:0x%08x",
+                (uint32_t)(lpc_cmd.data64>>32),
+                (uint32_t)(lpc_cmd.data64));
         l_err = SCOM_putScom(l_target, LPC_CMD_REG, lpc_cmd.data64);
+        if(l_err != SUCCESS)
+        {
+            TRAC_IMP("lpc_read: SCOM_putScom failed to LPC_CMD_REG command: 0x%08x", (uint32_t)lpc_cmd.data64);
+        }
 
         /* Poll for completion */
         StatusReg_t lpc_status;
@@ -252,6 +256,15 @@ errorHndl_t lpc_read( LpcTransType i_type,
         /* Read result */
         //TRAC_ERR("WGH lpc_read doing getScom to tgt:0x%x reg:0x%x data:0x%x", l_target, LPC_DATA_REG, *o_data);
         l_err = SCOM_getScom(l_target, LPC_DATA_REG, &l_ret);
+        if(l_err != SUCCESS)
+        {
+            TRAC_IMP("lpc_read: SCOM_getScom failed");
+        }
+        else
+        {
+            TRAC_IMP("lpc_read: SCOM_getScom is good and returned 0x%08x %08x", (uint32_t)(l_ret>>32),
+                      (uint32_t)l_ret);
+        }
 
         //TRAC_ERR("WGH: above getscom returned: 0x%x, 0x%x",
         //        (uint32_t)(l_ret >>32),
@@ -285,19 +298,28 @@ errorHndl_t lpc_write( LpcTransType i_type,
         SCOM_Trgt_t l_target;
         l_target.type = TRGT_PROC;
         l_target.isMaster = TRUE;
-        //TRAC_ERR("WGH lpc_write doing putScom to tgt:0x%x reg:0x%x data:0x%08x 0x%08x",
-        //        l_target, LPC_CMD_REG,
-        //        (uint32_t)((lpc_cmd.data64&0xFFFFFFFF00000000)>>32),
-        //        (uint32_t)(lpc_cmd.data64&0xFFFFFFFF));
-        SCOM_putScom(l_target, LPC_CMD_REG, lpc_cmd.data64);
+        TRAC_IMP("WGH lpc_write doing putScom to reg:0x%x data:0x%08x 0x%08x",
+                LPC_CMD_REG,
+                (uint32_t)(lpc_cmd.data64>>32),
+                (uint32_t)lpc_cmd.data64);
+        l_err = SCOM_putScom(l_target, LPC_CMD_REG, lpc_cmd.data64);
+        if(l_err != SUCCESS)
+        {
+            TRAC_IMP("lpc_write: SCOM_putScom failed to LPC_CMD_REG command: 0x%08x %08x", (uint32_t)(lpc_cmd.data64>>32), (uint32_t)lpc_cmd.data64);
+        }
 
         /* Trigger Write command via Scom */
-        uint32_t l_write_data = (*i_data);
-        if(l_addr == 0xd001002e)
-            l_write_data <<= 8; 
-        //TRAC_ERR("WGH lpc_write doing putScom to tgt:0x%x reg:0x%x data:0x%x",
-        //        l_target, LPC_DATA_REG, l_write_data);
-        SCOM_putScom(l_target, LPC_DATA_REG, l_write_data);
+        uint64_t l_write_data = (*i_data);
+        uint32_t l_shift_amount = (7 - (l_addr & 0x7)) * 8;
+        l_write_data <<= l_shift_amount;
+        //TRAC_IMP("WGH i_data = 0x%x l_write_data = 0x%08x %08x l_addr = 0x%08x", *i_data, (uint32_t)(l_write_data>>32), (uint32_t)l_write_data, l_addr);
+        TRAC_IMP("WGH lpc_write doing putScom to reg:0x%x data:0x%08x %08x",
+                 LPC_DATA_REG, (uint32_t)(l_write_data>>32), (uint32_t)l_write_data);
+        l_err = SCOM_putScom(l_target, LPC_DATA_REG, l_write_data);
+        if(l_err != SUCCESS)
+        {
+            TRAC_IMP("lpc_write: SCOM_putScom failed to LPC_DATA_REG data: 0x%08x", (uint32_t)l_write_data);
+        }
 
         /* Poll for completion */
         StatusReg_t lpc_stat;

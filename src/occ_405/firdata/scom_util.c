@@ -372,6 +372,7 @@ int32_t getscomraw( SCOM_Trgt_t i_chip, uint32_t i_addr, uint64_t * o_val )
                                   ASYNC_REQUEST_BLOCKING); //Options
         if(l_rc)
         {
+            TRAC_IMP("getscomraw: failed to create gpe request");
             return l_rc;
         }
         else
@@ -387,6 +388,7 @@ int32_t getscomraw( SCOM_Trgt_t i_chip, uint32_t i_addr, uint64_t * o_val )
     l_rc = gpe_request_schedule(&G_request);
     if(l_rc)
     {
+        TRAC_IMP("getscomraw: failed to schedule gpe request");
         return l_rc;
     }
 
@@ -434,6 +436,7 @@ int32_t putscomraw( SCOM_Trgt_t i_chip, uint32_t i_addr, uint64_t i_val )
                                   ASYNC_REQUEST_BLOCKING); //Options
         if(l_rc)
         {
+            TRAC_IMP("putscomraw gpe request create failed, rc = 0x%08x", l_rc);
             return l_rc;
         }
         else
@@ -450,6 +453,7 @@ int32_t putscomraw( SCOM_Trgt_t i_chip, uint32_t i_addr, uint64_t i_val )
     l_rc = gpe_request_schedule(&G_request);
     if(l_rc)
     {
+        TRAC_IMP("putscomraw gpe request schedule failed, rc=0x%08X", l_rc);
         return l_rc;
     }
 
@@ -457,6 +461,7 @@ int32_t putscomraw( SCOM_Trgt_t i_chip, uint32_t i_addr, uint64_t i_val )
     //time, then a timeout has occurred.
     if(G_request.request.completion_state != ASYNC_REQUEST_STATE_COMPLETE)
     {
+        TRAC_IMP("putscomraw gpe request failed to complete, rc = 0x%08x", l_rc);
         l_rc = FAIL;
     }
 
@@ -485,7 +490,7 @@ int32_t SCOM_getScom( SCOM_Trgt_t i_trgt, uint32_t i_addr, uint64_t * o_val )
         /* Do the SCOM. */
         rc = getscomraw( chip_targ, trans_addr, o_val );
     }
-    TRAC_ERR("WGH SCOM_getScom returning 0x%08x %08x", (uint32_t)(*o_val>>32), (uint32_t)(*o_val));
+    //TRAC_ERR("WGH SCOM_getScom returning 0x%08x %08x", (uint32_t)(*o_val>>32), (uint32_t)(*o_val));
 
     return rc;
 }

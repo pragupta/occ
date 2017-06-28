@@ -41,20 +41,21 @@ int TRACE_PNOR_MBOX = 0;
 
 errorHndl_t hwInit(pnorMbox_t* i_pnorMbox)
 {
-    TRAC_ERR("WGH hwInit start");
+    TRAC_IMP("WGH hwInit start");
     errorHndl_t l_err = NO_ERROR;
 
     //Current window starts closed
     i_pnorMbox->iv_curWindowOpen = false;
     i_pnorMbox->iv_mbox.iv_mboxMsgSeq = 1;
     initializeMbox();
-
+    TRAC_IMP("WGH initializeMbox() finished");
     //Send message to BMC Mbox to get MBOX info
     // This message gets the MBOX protocol version
     mboxMessage_t l_getInfoMsg;
     l_getInfoMsg.iv_cmd = MBOX_C_GET_MBOX_INFO;
     put8(&l_getInfoMsg, 0, 2);
     doMessage(&i_pnorMbox->iv_mbox, &l_getInfoMsg);
+    TRAC_IMP("WGH first doMessage finished");
     i_pnorMbox->iv_protocolVersion = get8(&l_getInfoMsg, 0);
 
     if (i_pnorMbox->iv_protocolVersion == 1)
@@ -70,15 +71,16 @@ errorHndl_t hwInit(pnorMbox_t* i_pnorMbox)
         i_pnorMbox->iv_blockShift = get8(&l_getInfoMsg, 5);
     }
 
-    TRAC_INFO("mboxPnor: protocolVersion=%d blockShift=%d",
-               i_pnorMbox->iv_protocolVersion,
-               i_pnorMbox->iv_blockShift);
+    //TRAC_INFO("mboxPnor: protocolVersion=%d blockShift=%d",
+    //           i_pnorMbox->iv_protocolVersion,
+    //           i_pnorMbox->iv_blockShift);
 
     //Now get the size of the flash
     mboxMessage_t l_getSizeMsg;
     l_getSizeMsg.iv_cmd = MBOX_C_GET_FLASH_INFO;
     doMessage(&i_pnorMbox->iv_mbox, &l_getSizeMsg);
 
+    TRAC_IMP("WGH second doMessage finished");
     if (i_pnorMbox->iv_protocolVersion == 1)
     {
         i_pnorMbox->iv_flashSize = get32(&l_getSizeMsg, 0);
@@ -92,7 +94,7 @@ errorHndl_t hwInit(pnorMbox_t* i_pnorMbox)
                                         << i_pnorMbox->iv_blockShift;
     }
 
-    TRAC_ERR("WGH hwInit end");
+    TRAC_IMP("WGH hwInit end");
     return l_err;
 }
 
