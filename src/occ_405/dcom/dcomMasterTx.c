@@ -321,13 +321,13 @@ void task_dcom_tx_slv_inbox( task_t *i_self)
                 l_proceed_with_request_and_schedule = FALSE;
 
                 // Trace important information from the request
-                TRAC_INFO("BCE slv inbox tx request not idle and not complete: callback_rc[%d] options[0x%x] state[0x%x] abort_state[0x%x] completion_state[0x%x]",
-                          G_slv_inbox_tx_pba_request.request.callback_rc,
-                          G_slv_inbox_tx_pba_request.request.options,
-                          G_slv_inbox_tx_pba_request.request.state,
-                          G_slv_inbox_tx_pba_request.request.abort_state,
-                          G_slv_inbox_tx_pba_request.request.completion_state);
-                TRAC_INFO("NOT proceeding with BCE slv inbox tx request and schedule");
+//                TRAC_INFO("BCE slv inbox tx request not idle and not complete: callback_rc[%d] options[0x%x] state[0x%x] abort_state[0x%x] completion_state[0x%x]",
+//                          G_slv_inbox_tx_pba_request.request.callback_rc,
+//                          G_slv_inbox_tx_pba_request.request.options,
+//                          G_slv_inbox_tx_pba_request.request.state,
+//                          G_slv_inbox_tx_pba_request.request.abort_state,
+//                          G_slv_inbox_tx_pba_request.request.completion_state);
+                //TRAC_INFO("NOT proceeding with BCE slv inbox tx request and schedule");
             }
             else
             {

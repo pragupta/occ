@@ -120,7 +120,7 @@ errorHndl_t mboxOut(uint64_t i_addr, uint8_t i_byte)
 
 errorHndl_t mboxIn(uint64_t i_addr, uint8_t *o_byte)
 {
-    size_t len = sizeof(o_byte);
+    size_t len = sizeof(uint8_t);
 
     return lpc_read( LPC_TRANS_IO,
                      i_addr + MBOX_IO_BASE,
@@ -133,10 +133,10 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
     uint8_t* l_data = (uint8_t*)io_msg;
     errorHndl_t l_err = NO_ERROR;
     uint8_t l_stat1;
-    uint8_t l_flags;
-    //uint32_t l_loops = 0;
+    uint32_t l_loops = 0;
     bool l_prot_error = false;
     int i;
+    uint32_t l_print = 500000;
 
     //TRAC_IMP( "doMessage(Command = 0x%02x)", io_msg->iv_cmd );
     io_msg->iv_seq = io_mbox->iv_mboxMsgSeq++;
@@ -146,7 +146,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
         /* Write message out */
         for (i = 0; i < BMC_MBOX_DATA_REGS && !l_err; i++)
         {
-            //TRAC_IMP("doMessage: l_data[%d] = 0x%x", i, l_data[i]);
+            TRAC_IMP("doMessage: sending l_data[%d] = 0x%x", i, l_data[i]);
             l_err = mboxOut(i, l_data[i]);
         }
 
@@ -156,6 +156,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
         }
 
         /* Clear status1 response bit as it was just set via reg write*/
+        TRAC_IMP("doMessage: clearing mbox status[0x%x] = 0x%x", MBOX_STATUS_1, MBOX_STATUS1_RESP);
         l_err = mboxOut(MBOX_STATUS_1, MBOX_STATUS1_RESP);
 
         if ( l_err )
@@ -164,6 +165,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
         }
 
         /* Ping BMC */
+        TRAC_IMP("doMessage: ping bmc[0x%x] = 0x%x", MBOX_HOST_CTRL, MBOX_CTRL_INT_SEND);
         l_err = mboxOut(MBOX_HOST_CTRL, MBOX_CTRL_INT_SEND);
 
         if ( l_err )
@@ -174,22 +176,39 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
         TRAC_IMP( "Command sent, waiting for response...");
 
         /* Wait for response */
-        //while ( l_loops++ < MBOX_MAX_RESP_WAIT_US && !l_err )
-        //{
+//        while ( l_loops++ < 10000 && !l_err )
+        while ( l_loops++ < MBOX_MAX_RESP_WAIT_US && !l_err )
+        {
             l_err = mboxIn(MBOX_STATUS_1, &l_stat1);
 
             if ( l_err )
             {
-                TRAC_IMP("doMessage error from MBOX_STATUS_1");
+                TRAC_ERR("doMessage error from MBOX_STATUS_1");
                 break;
             }
 
-            l_err = mboxIn(MBOX_FLAG_REG, &l_flags);
+//            l_err = mboxIn(MBOX_FLAG_REG, &l_flags);
+//
+//            if ( l_err )
+//            {
+//                TRAC_ERR("doMessage error from MBOX_FLAG_REG");
+//                break;
+//            }
 
-            if ( l_err )
+            if (l_print == 0)
             {
-                TRAC_IMP("doMessage error from MBOX_FLAG_REG");
-                break;
+                TRAC_IMP( "WGH MBOX Response Status: 0x%x expected: 0x%x", l_stat1, MBOX_STATUS1_RESP);
+                for (i = 0; i < BMC_MBOX_DATA_REGS && !l_err; i++)
+                {
+                    l_err = mboxIn(i, &l_data[i]);
+                    TRAC_IMP("doMessage: reading l_data[%d] = 0x%x", i, l_data[i]);
+                }
+
+                l_print = 500000;
+            }
+            else
+            {
+                l_print--;
             }
 
             if ( l_stat1 & MBOX_STATUS1_RESP )
@@ -197,10 +216,9 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
                 TRAC_IMP("doMessage found response");
                 break;
             }
-
-            //sleep(1000);
-        //}
-        TRAC_IMP( "WGH Response received. Flags 0x%x Status 0x%x", l_flags, l_stat1);
+            sleep(1000);
+        }
+        TRAC_IMP( "WGH Response received. Status: 0x%x expected: 0x%x", l_stat1, MBOX_STATUS1_RESP);
 
         if ( l_err )
         {
@@ -213,14 +231,13 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
             TRAC_IMP( "Timeout waiting for response !");
 
             // Don't try to interrupt the BMC anymore
+            TRAC_IMP("doMessage: don't interrupt the BMC [0x%x] = 0x%x", MBOX_HOST_CTRL, 0);
             l_err = mboxOut(MBOX_HOST_CTRL, 0);
-
             if ( l_err)
             {
                 //Note the command failed
                 TRAC_IMP( "Error communicating with MBOX daemon");
                 TRAC_IMP( "Mbox status 1 reg: %x", l_stat1);
-                TRAC_IMP( "Mbox flag reg: %x", l_flags);
             }
 
             // Tell the code below that we generated the error
@@ -228,6 +245,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
             l_prot_error = true;
             break;
         }
+        TRAC_IMP( "WGH Got response from BMC.. going to clear status reg");
 
         /* Clear status */
         l_err = mboxOut(MBOX_STATUS_1, MBOX_STATUS1_RESP);
@@ -243,7 +261,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
         uint8_t old_seq = io_msg->iv_seq;
 
         // Read response
-        //TRAC_IMP( "Reading response data...");
+        TRAC_IMP( "Reading response data...");
 
         for (i = 0; i < BMC_MBOX_DATA_REGS && !l_err; i++)
         {
@@ -288,6 +306,7 @@ errorHndl_t doMessage( astMbox_t *io_mbox, mboxMessage_t *io_msg )
     {
     }
 
+    TRAC_IMP("doMessage done! rc = 0x%x", l_err);
     //TRAC_IMP( "doMessage() resp=0x%02x",
     //           io_msg->iv_resp );
     return l_err;

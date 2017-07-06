@@ -43,57 +43,83 @@ errorHndl_t hwInit(pnorMbox_t* i_pnorMbox)
 {
     TRAC_IMP("WGH hwInit start");
     errorHndl_t l_err = NO_ERROR;
-
-    //Current window starts closed
-    i_pnorMbox->iv_curWindowOpen = false;
-    i_pnorMbox->iv_mbox.iv_mboxMsgSeq = 1;
-    initializeMbox();
-    TRAC_IMP("WGH initializeMbox() finished");
-    //Send message to BMC Mbox to get MBOX info
-    // This message gets the MBOX protocol version
-    mboxMessage_t l_getInfoMsg;
-    l_getInfoMsg.iv_cmd = MBOX_C_GET_MBOX_INFO;
-    put8(&l_getInfoMsg, 0, 2);
-    doMessage(&i_pnorMbox->iv_mbox, &l_getInfoMsg);
-    TRAC_IMP("WGH first doMessage finished");
-    i_pnorMbox->iv_protocolVersion = get8(&l_getInfoMsg, 0);
-
-    if (i_pnorMbox->iv_protocolVersion == 1)
+    uint8_t* l_data;
+    int i;
+    do
     {
-        i_pnorMbox->iv_blockShift = 12;
-        i_pnorMbox->iv_readWindowSize = get16(&l_getInfoMsg, 1)
+        //Current window starts closed
+        i_pnorMbox->iv_curWindowOpen = false;
+        i_pnorMbox->iv_mbox.iv_mboxMsgSeq = 1;
+        l_err = initializeMbox();
+        if (l_err)
+        {
+            TRAC_ERR("initializeMbox failed rc:0x%x", l_err);
+            break;
+        }
+
+        TRAC_IMP("WGH initializeMbox() finished");
+        //Send message to BMC Mbox to get MBOX info
+        // This message gets the MBOX protocol version
+        mboxMessage_t l_getInfoMsg;
+        l_data = (uint8_t*)(&l_getInfoMsg);
+        for (i = 0; i < BMC_MBOX_DATA_REGS; i++)
+        {
+            l_data[i] = 0;
+        }
+
+        l_getInfoMsg.iv_cmd = MBOX_C_GET_MBOX_INFO;
+        put8(&l_getInfoMsg, 0, 2);
+        l_err = doMessage(&i_pnorMbox->iv_mbox, &l_getInfoMsg);
+        if (l_err)
+        {
+            TRAC_ERR("doMessage to ping BMC failed with rc=0x%x", l_err);
+            break;
+        }
+
+        TRAC_IMP("WGH first doMessage finished");
+        i_pnorMbox->iv_protocolVersion = get8(&l_getInfoMsg, 0);
+
+        if (i_pnorMbox->iv_protocolVersion == 1)
+        {
+            i_pnorMbox->iv_blockShift = 12;
+            i_pnorMbox->iv_readWindowSize = get16(&l_getInfoMsg, 1)
+                                                << i_pnorMbox->iv_blockShift;
+            i_pnorMbox->iv_writeWindowSize = get16(&l_getInfoMsg, 3)
+                                                << i_pnorMbox->iv_blockShift;
+        }
+        else
+        {
+            i_pnorMbox->iv_blockShift = get8(&l_getInfoMsg, 5);
+        }
+
+        //TRAC_IMP("mboxPnor: protocolVersion=%d blockShift=%d",
+        //           i_pnorMbox->iv_protocolVersion,
+        //           i_pnorMbox->iv_blockShift);
+
+        //Now get the size of the flash
+        mboxMessage_t l_getSizeMsg;
+        l_getSizeMsg.iv_cmd = MBOX_C_GET_FLASH_INFO;
+        l_err = doMessage(&i_pnorMbox->iv_mbox, &l_getSizeMsg);
+        if (l_err)
+        {
+            TRAC_ERR("doMessage failed to get flash size rc=0x%x", l_err);
+            break;
+        }
+
+        TRAC_IMP("WGH second doMessage to get flash size finished");
+        if (i_pnorMbox->iv_protocolVersion == 1)
+        {
+            i_pnorMbox->iv_flashSize = get32(&l_getSizeMsg, 0);
+            i_pnorMbox->iv_flashEraseSize = get32(&l_getSizeMsg, 4);
+        }
+        else
+        {
+            i_pnorMbox->iv_flashSize = get16(&l_getSizeMsg, 0)
                                             << i_pnorMbox->iv_blockShift;
-        i_pnorMbox->iv_writeWindowSize = get16(&l_getInfoMsg, 3)
+            i_pnorMbox->iv_flashEraseSize = get16(&l_getSizeMsg, 2)
                                             << i_pnorMbox->iv_blockShift;
-    }
-    else
-    {
-        i_pnorMbox->iv_blockShift = get8(&l_getInfoMsg, 5);
-    }
-
-    //TRAC_INFO("mboxPnor: protocolVersion=%d blockShift=%d",
-    //           i_pnorMbox->iv_protocolVersion,
-    //           i_pnorMbox->iv_blockShift);
-
-    //Now get the size of the flash
-    mboxMessage_t l_getSizeMsg;
-    l_getSizeMsg.iv_cmd = MBOX_C_GET_FLASH_INFO;
-    doMessage(&i_pnorMbox->iv_mbox, &l_getSizeMsg);
-
-    TRAC_IMP("WGH second doMessage finished");
-    if (i_pnorMbox->iv_protocolVersion == 1)
-    {
-        i_pnorMbox->iv_flashSize = get32(&l_getSizeMsg, 0);
-        i_pnorMbox->iv_flashEraseSize = get32(&l_getSizeMsg, 4);
-    }
-    else
-    {
-        i_pnorMbox->iv_flashSize = get16(&l_getSizeMsg, 0)
-                                        << i_pnorMbox->iv_blockShift;
-        i_pnorMbox->iv_flashEraseSize = get16(&l_getSizeMsg, 2)
-                                        << i_pnorMbox->iv_blockShift;
-    }
-
+        }
+    } while (0);
     TRAC_IMP("WGH hwInit end");
     return l_err;
 }
@@ -115,7 +141,7 @@ errorHndl_t readFlash(pnorMbox_t* i_pnorMbox,
             return FAIL;
         }
 
-        TRAC_INFO("readFlash(i_addr=0x%.8X)> ", i_addr);
+        TRAC_IMP("readFlash(i_addr=0x%.8X)> ", i_addr);
 
         while (i_size)
         {
@@ -174,7 +200,7 @@ errorHndl_t writeFlash(pnorMbox_t* i_pnorMbox,
             return FAIL;
         }
 
-        TRAC_INFO(ENTER_MRK"writeFlash(i_address=0x%llx)> ", i_addr);
+        TRAC_IMP("writeFlash(i_address=0x%llx)> ", i_addr);
 
         errorHndl_t l_flushErr = NO_ERROR;
 
@@ -233,7 +259,7 @@ errorHndl_t writeFlash(pnorMbox_t* i_pnorMbox,
             i_size = 0;
         }
 
-        TRAC_INFO("writeFlash(i_address=0x%llx)> i_size=%.8X",
+        TRAC_IMP("writeFlash(i_address=0x%llx)> i_size=%.8X",
                         i_addr, i_size);
 
         if(l_err)
@@ -293,7 +319,7 @@ errorHndl_t adjustMboxWindow(pnorMbox_t* i_pnorMbox,
          * Then open the new one at the right position. The required
          * alignment differs between protocol versions
          */
-        TRAC_INFO("astMboxDD::adjustMboxWindow using protocol version: %d",
+        TRAC_IMP("astMboxDD::adjustMboxWindow using protocol version: %d",
                     i_pnorMbox->iv_protocolVersion);
         if (i_pnorMbox->iv_protocolVersion == 1)
         {
@@ -311,7 +337,7 @@ errorHndl_t adjustMboxWindow(pnorMbox_t* i_pnorMbox,
                           - l_pos;
         }
 
-        TRAC_INFO("adjustMboxWindow opening %s window at 0x%08x"
+        TRAC_IMP("adjustMboxWindow opening %s window at 0x%08x"
                   " for addr 0x%08x req_size 0x%08x",
                   i_isWrite ? "write" : "read", l_pos, i_reqAddr, l_reqSize);
 
@@ -357,9 +383,9 @@ errorHndl_t adjustMboxWindow(pnorMbox_t* i_pnorMbox,
         i_pnorMbox->iv_curWindowOpen = true;
         i_pnorMbox->iv_curWindowWrite = i_isWrite;
 
-        TRAC_INFO(" curWindowOffset    = %08x", i_pnorMbox->iv_curWindowOffset);
-        TRAC_INFO(" curWindowSize      = %08x", i_pnorMbox->iv_curWindowSize);
-        TRAC_INFO(" curWindowLpcOffset = %08x",
+        TRAC_IMP(" curWindowOffset    = %08x", i_pnorMbox->iv_curWindowOffset);
+        TRAC_IMP(" curWindowSize      = %08x", i_pnorMbox->iv_curWindowSize);
+        TRAC_IMP(" curWindowLpcOffset = %08x",
                                 i_pnorMbox->iv_curWindowLpcOffset);
 
     }

@@ -491,8 +491,8 @@ void task_dcom_wait_for_master( task_t *i_self)
 
                 if (L_no_master_doorbell_cnt % L_trace_every_count == 0)
                 {
-                    TRAC_INFO("task_dcom_wait_for_master: experiencing data collection problems! fail_count=%i",
-                              L_no_master_doorbell_cnt);
+//                    TRAC_INFO("task_dcom_wait_for_master: experiencing data collection problems! fail_count=%i",
+//                              L_no_master_doorbell_cnt);
                 }
 
                 if (L_no_master_doorbell_cnt == APSS_DATA_FAIL_PMAX_RAIL)

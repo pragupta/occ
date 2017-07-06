@@ -1720,24 +1720,24 @@ void Main_thread_routine(void *private)
         static bool L_fir_collection_completed = FALSE;
         if (G_fir_collection_required && !L_fir_collection_completed)
         {
-            //TRAC_IMP("Checkstop analysis start");
-            //initializeMbox();
+            TRAC_IMP("WGH Checkstop analysis start");
             uint32_t l_rc = hwInit(&l_pnorMbox);
             if(l_rc != SUCCESS)
             {
                 TRAC_IMP("hwInit failed");
             }
-            uint32_t l_pnor_data[2];
+            TRAC_IMP("WGH Checkstop analysis hwInit DONE");
+//            uint32_t l_pnor_data[2];
             //TRAC_IMP("***WGH FIR collection required");
 
-            uint8_t l_data;
+//            uint8_t l_data;
             // If this OCC is the FIR master and PNOR access is allowed perform
             //             // FIR collection
 //            if (OCC_IS_FIR_MASTER())
             {
-                writeRegSIO(0x21, 0x31);
+//                writeRegSIO(0x21, 0x31);
 //                TRAC_ERR("***WGH IS_FIR_MASTER");
-                readRegSIO( 0x21, &l_data );
+//                readRegSIO( 0x21, &l_data );
                 //uint64_t l_data_full = l_data;
                // TRAC_IMP("WGH l_data = 0x%x", l_data);
                 //TRAC_IMP("WGH Reg 0x21 = 0x%08x %08x", (uint32_t)(l_data_full >> 32),
@@ -1763,10 +1763,10 @@ void Main_thread_routine(void *private)
 //                        (uint32_t)(l_data&0xFFFFFFFF));
 
                 L_fir_collection_completed = TRUE;
-                readFlash(&l_pnorMbox, 0, 8, l_pnor_data);
-
-                TRAC_IMP("WGH PNOR data: 0x%08x %08x", l_pnor_data[0], l_pnor_data[1]);
-                TRAC_IMP("***WGH TEST DONE");
+//                readFlash(&l_pnorMbox, 0, 8, l_pnor_data);
+//
+//                TRAC_IMP("WGH PNOR data: 0x%08x %08x", l_pnor_data[0], l_pnor_data[1]);
+//                TRAC_IMP("***WGH TEST DONE");
             }
         }
 
